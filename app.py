@@ -10,6 +10,11 @@ from services.estadisticas import promedio_regional
 from services.prediccion import predecir_precio
 from services.web_precios import obtener_precios_web
 from firebase_config import db
+import streamlit as st
+from firebase_config import db
+
+st.success("🔥 Firebase conectado correctamente")
+
 
 st.set_page_config("Mayorista6", layout="wide")
 st.title("🏪 Mayorista6 – Cotizador Sexta Región")
