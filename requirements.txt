@@ -8,3 +8,6 @@ requests
 beautifulsoup4
 google-generativeai
 Pillow
+selenium
+webdriver-manager
+beautifulsoup4
