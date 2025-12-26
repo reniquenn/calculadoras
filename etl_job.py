@@ -22,11 +22,12 @@ def extraer_precios_mercado():
 
     for prod in productos_monitor:
         fuentes = [
-            {"prov": "Lider", "marca": "Lider", "precio_base": 950},
-            {"prov": "Casa Gamovi", "marca": "Tucapel", "precio_base": 1490}, # Sucursal Codegua/San Francisco
-            {"prov": "Mayorista 10", "marca": "Acuenta", "precio_base": 890},
-            {"prov": "Alvi", "marca": "Genérica", "precio_base": 870}
-        ]
+        {"prov": "Lider", "prod": "Aceite", "marca": "Chef", "detalle": "900ml", "precio_base": 1250},
+        {"prov": "Lider", "prod": "Arroz", "marca": "Tucapel", "detalle": "1kg G2", "precio_base": 1350},
+        {"prov": "Casa Gamovi", "prod": "Bebida", "marca": "Coca Cola", "detalle": "3L Retornable", "precio_base": 2390},
+        {"prov": "Mayorista 10", "prod": "Bebida", "marca": "Acuenta", "detalle": "3L Desechable", "precio_base": 1100},
+        {"prov": "Alvi", "prod": "Harina", "marca": "Selecta", "detalle": "Sin Polvos 1kg", "precio_base": 890}
+    ]
 
         for fuente in fuentes:
             precio_actual = fuente["precio_base"] + random.randint(-30, 30)

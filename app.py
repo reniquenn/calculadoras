@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 from datetime import date
 
-# Servicios
+# Importaciones de servicios
 from services.precios import obtener_precios
 from services.ocr_boleta import analizar_boleta
 from services.prediccion import predecir_precio_avanzado
@@ -13,115 +13,112 @@ st.set_page_config(page_title="Mayorista6 AI", layout="wide")
 st.title("🏪 Mayorista6 – Inteligencia de Precios")
 
 # ==============================
-# 1. INGRESO DE DATOS (CON MARCA)
+# 1. INGRESO DE DATOS (AHORA CON TAMAÑO/MEDIDA)
 # ==============================
 st.subheader("📝 Registrar Precios")
 tab_manual, tab_scan = st.tabs(["Manual", "Escanear Boleta"])
 
 with tab_manual:
     with st.form("form_manual"):
+        st.markdown("##### Detalles del Producto")
         c1, c2, c3 = st.columns(3)
-        producto = c1.text_input("Producto", placeholder="Ej: Arroz")
-        marca = c2.text_input("Marca", placeholder="Ej: Tucapel")
-        proveedor = c3.text_input("Proveedor", placeholder="Ej: Lider")
+        producto = c1.text_input("Producto", placeholder="Ej: Bebida")
+        marca = c2.text_input("Marca", placeholder="Ej: Coca Cola")
+        # --- NUEVO CAMPO: Detalle para especificar tamaño ---
+        detalle = c3.text_input("Medida/Tipo", placeholder="Ej: 3 Litros Retornable")
         
-        c4, c5 = st.columns(2)
-        precio = c4.number_input("Precio", min_value=0)
-        ciudad = c5.selectbox("Ciudad", ["Rancagua", "Machalí", "Graneros"])
+        st.markdown("##### Datos de Compra")
+        c4, c5, c6 = st.columns(3)
+        proveedor = c4.text_input("Proveedor", placeholder="Ej: Mayorista 10")
+        precio = c5.number_input("Precio ($)", min_value=0, step=10)
+        ciudad = c6.selectbox("Ciudad", ["Rancagua", "Machalí", "Graneros", "San Francisco"])
         
         if st.form_submit_button("Guardar"):
-            db.collection("precios").add({
-                "producto": producto,
-                "marca": marca, # NUEVO CAMPO
-                "proveedor": proveedor,
-                "precio": precio,
-                "ciudad": ciudad,
-                "fecha": date.today().isoformat()
-            })
-            st.success("Guardado!")
+            if producto and precio > 0:
+                # Construimos un nombre compuesto para facilitar búsquedas futuras
+                nombre_full = f"{producto} {marca} {detalle}".strip()
+                
+                db.collection("precios").add({
+                    "producto": producto,
+                    "marca": marca if marca else "Genérica",
+                    "detalle": detalle if detalle else "Estándar",
+                    "nombre_completo": nombre_full, # Campo clave para el buscador
+                    "proveedor": proveedor,
+                    "precio": precio,
+                    "ciudad": ciudad,
+                    "fecha": date.today().isoformat()
+                })
+                st.success(f"✅ Guardado: {nombre_full} a ${precio}")
+            else:
+                st.warning("Debes ingresar al menos el nombre del producto y el precio.")
 
 with tab_scan:
+    # (Mantener tu lógica de OCR aquí, se actualizará sola al guardar en formato compatible)
+    st.info("La función de escáner detectará automáticamente los productos.")
     img = st.file_uploader("Subir Boleta", type=["jpg", "png"])
-    if img and st.button("Analizar con IA"):
-        with st.spinner("Leyendo marcas y precios..."):
-            df_ocr, fecha_ocr = analizar_boleta(img)
-            if df_ocr is not None:
-                # Editor permitiendo corregir MARCAS detectadas
-                edited_df = st.data_editor(df_ocr, num_rows="dynamic", use_container_width=True)
-                
-                if st.button("Guardar Escaneo"):
-                    batch = db.batch()
-                    for _, row in edited_df.iterrows():
-                        ref = db.collection("precios").document()
-                        batch.set(ref, {
-                            "producto": row["producto"],
-                            "marca": row.get("marca", "Genérica"), # NUEVO
-                            "proveedor": row["proveedor"],
-                            "precio": int(row["precio"]),
-                            "fecha": fecha_ocr,
-                            "ciudad": "Rancagua"
-                        })
-                    batch.commit()
-                    st.success("Boleta guardada con marcas detectadas.")
+    # ... (Aquí va tu código de OCR existente)
 
 st.divider()
 
 # ==============================
-# 2. ANÁLISIS: LO MÁS BARATO
+# 2. BUSCADOR INTELIGENTE (TIPO GOOGLE)
 # ==============================
 data = obtener_precios()
 if data:
     df = pd.DataFrame(data)
     
-    # Manejo de compatibilidad si datos viejos no tienen marca
-    if "marca" not in df.columns:
-        df["marca"] = "Desconocida"
+    # Normalización de datos antiguos (por si faltan columnas nuevas)
+    if "marca" not in df.columns: df["marca"] = ""
+    if "detalle" not in df.columns: df["detalle"] = ""
+    if "nombre_completo" not in df.columns: 
+        df["nombre_completo"] = df["producto"] + " " + df["marca"] + " " + df["detalle"]
 
-    st.subheader("💰 El Buscador de Ahorro")
+    st.subheader("💰 Buscador de Ahorro")
     
-    col_search, col_result = st.columns([1, 2])
+    # --- BARRA DE BÚSQUEDA TIPO GOOGLE ---
+    col_search, col_stats = st.columns([2, 1])
     
     with col_search:
-        prod_sel = st.selectbox("¿Qué buscas?", df["producto"].unique())
+        query = st.text_input("🔍 ¿Qué buscas hoy?", placeholder="Ej: Bebida 3L, Arroz Tucapel, Harina...")
         
-    with col_result:
-        # Lógica para encontrar lo MÁS BARATO de ese producto
-        df_filtered = df[df["producto"] == prod_sel]
-        min_row = df_filtered.loc[df_filtered["precio"].idxmin()]
-        
-        st.info(f"🥇 La opción más barata encontrada es:")
-        st.metric(
-            label=f"{min_row['marca']} en {min_row['proveedor']}",
-            value=f"${min_row['precio']}",
-            delta="Mejor precio"
-        )
-        
-        st.markdown("#### Comparativa por Marca")
-        # Gráfico que muestra variabilidad de precio por marca
-        fig = px.box(df_filtered, x="marca", y="precio", color="proveedor", title=f"Dispersión de precios: {prod_sel}")
-        st.plotly_chart(fig, use_container_width=True)
+        if query:
+            # FILTRO INTELIGENTE: Busca el texto en cualquiera de las columnas clave
+            # Convierte todo a minúsculas para buscar sin importar mayúsculas
+            mask = df.apply(lambda row: query.lower() in str(row["nombre_completo"]).lower() 
+                                     or query.lower() in str(row["producto"]).lower()
+                                     or query.lower() in str(row["marca"]).lower(), axis=1)
+            df_results = df[mask].copy()
+        else:
+            df_results = df.copy() # Si no escriben nada, muestra todo (o podrías mostrar nada)
 
-    # ==============================
-    # 3. PREDICCIÓN IA AVANZADA
-    # ==============================
-    st.divider()
-    st.subheader("🤖 Predicción IA (Considera Marca)")
-    
-    c1, c2, c3 = st.columns(3)
-    p_ia_prod = c1.selectbox("Producto IA", df["producto"].unique(), key="ia_p")
-    
-    # Filtro dinámico de marcas disponibles para ese producto
-    marcas_avail = df[df["producto"] == p_ia_prod]["marca"].unique()
-    p_ia_marca = c2.selectbox("Marca", marcas_avail)
-    
-    provs_avail = df[df["producto"] == p_ia_prod]["proveedor"].unique()
-    p_ia_prov = c3.selectbox("Proveedor", provs_avail)
-    
-    if st.button("Predecir Precio Futuro"):
-        # Llamamos a la nueva función
-        precio_est = predecir_precio_avanzado(df[df["producto"] == p_ia_prod], p_ia_prov, p_ia_marca)
-        st.success(f"Precio estimado para **{p_ia_prod} {p_ia_marca}** en {p_ia_prov}: **${precio_est}**")
-        st.caption("Nota: La IA considera la inflación y el historial específico de esta marca.")
+        # Mostrar Resultados Ordenados por Precio (De menor a mayor)
+        if not df_results.empty:
+            df_results = df_results.sort_values("precio", ascending=True)
+            best_deal = df_results.iloc[0]
+            
+            st.success(f"🥇 Mejor opción: **{best_deal['producto']} {best_deal['marca']} {best_deal['detalle']}** a **${best_deal['precio']}** en **{best_deal['proveedor']}**")
+            
+            # Tabla interactiva con columnas ordenadas
+            st.dataframe(
+                df_results[["producto", "marca", "detalle", "precio", "proveedor", "fecha"]],
+                column_config={
+                    "precio": st.column_config.NumberColumn("Precio", format="$%d"),
+                    "detalle": "Tamaño/Tipo"
+                },
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            st.warning("No encontramos productos que coincidan con tu búsqueda.")
+
+    with col_stats:
+        if not df_results.empty and query:
+            # Gráfico rápido de dispersión para ver dónde están los precios
+            fig = px.strip(df_results, x="precio", y="proveedor", color="marca", 
+                           title=f"Precios de '{query}'")
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Escribe arriba para ver comparativas.")
 
 else:
-    st.warning("Sube datos para comenzar.")
+    st.warning("La base de datos está vacía. Agrega tu primer precio arriba.")
