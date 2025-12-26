@@ -1,0 +1,22 @@
+name: ETL Precios Diarios
+on:
+  schedule:
+    - cron: '0 8 * * *' # Corre a las 8 AM todos los días
+
+jobs:
+  run-etl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Instalar Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - name: Instalar dependencias
+        run: pip install firebase-admin pandas
+      - name: Crear archivo de claves
+        env:
+          FIREBASE_JSON: ${{ secrets.FIREBASE_JSON_SECRET }} # Guardar contenido de json en Secrets de GitHub
+        run: echo "$FIREBASE_JSON" > firebase_key.json
+      - name: Ejecutar Script ETL
+        run: python etl_job.py
