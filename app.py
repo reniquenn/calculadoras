@@ -8,42 +8,45 @@ from services.precios import obtener_precios
 from services.alertas import detectar_bajadas
 from services.ranking import ranking_proveedores
 from services.estadisticas import promedio_regional
-from services.prediccion import predecir_precio
-from services.web_precios import obtener_precios_web
+# Importamos la nueva función de predicción IA
+from services.prediccion import predecir_precio_ia
+# Importamos ambas funciones de web
+from services.web_precios import obtener_precios_web, obtener_tendencia_mercado
 from firebase_config import db
 
-# 1. CONFIGURACIÓN DE PÁGINA (DEBE IR PRIMERO)
-st.set_page_config(page_title="Mayorista6", layout="wide")
+# 1. CONFIGURACIÓN DE PÁGINA
+st.set_page_config(page_title="Mayorista6 AI", layout="wide")
 
-st.title("🏪 Mayorista6 – Cotizador Sexta Región")
-st.success("🔥 Conectado a la base de datos de precios")
+st.title("🏪 Mayorista6 – Cotizador Inteligente con IA")
 
 # ==============================
 # ➕ INGRESO DE PRECIOS
 # ==============================
-st.subheader("➕ Agregar nuevo precio")
+with st.expander("➕ Agregar nuevo precio", expanded=False):
+    with st.form("nuevo_precio"):
+        col1, col2 = st.columns(2)
+        with col1:
+            producto = st.text_input("Producto (ej: Arroz 1kg)")
+            proveedor = st.text_input("Proveedor (ej: Mayorista Rancagua)")
+        with col2:
+            ciudad = st.selectbox("Ciudad", ["Rancagua", "Graneros", "San Francisco", "Machalí"])
+            precio = st.number_input("Precio", min_value=0)
+        
+        fecha = st.date_input("Fecha", value=date.today())
+        guardar = st.form_submit_button("Guardar en Base de Datos")
 
-with st.form("nuevo_precio"):
-    col1, col2 = st.columns(2)
-    with col1:
-        producto = st.text_input("Producto (ej: Arroz 1kg)")
-        proveedor = st.text_input("Proveedor (ej: Mayorista Rancagua)")
-    with col2:
-        ciudad = st.selectbox("Ciudad", ["Rancagua", "Graneros", "San Francisco", "Machalí"])
-        precio = st.number_input("Precio", min_value=0)
-    
-    fecha = st.date_input("Fecha", value=date.today())
-    guardar = st.form_submit_button("Guardar en Base de Datos")
-
-    if guardar and producto and proveedor:
-        db.collection("precios").add({
-            "producto": producto,
-            "proveedor": proveedor,
-            "ciudad": ciudad,
-            "precio": precio,
-            "fecha": fecha.isoformat()
-        })
-        st.success(f"✅ {producto} guardado correctamente")
+        if guardar and producto and proveedor:
+            try:
+                db.collection("precios").add({
+                    "producto": producto,
+                    "proveedor": proveedor,
+                    "ciudad": ciudad,
+                    "precio": precio,
+                    "fecha": fecha.isoformat()
+                })
+                st.success(f"✅ {producto} guardado correctamente")
+            except Exception as e:
+                st.error(f"Error al guardar: {e}")
 
 st.divider()
 
@@ -79,26 +82,66 @@ else:
     fig = px.bar(promedio, x="ciudad", y="precio", color="producto", barmode="group")
     st.plotly_chart(fig, use_container_width=True)
 
-    # Predicción
-    st.subheader("🤖 Predicción IA (7 días)")
-    prov_sel = st.selectbox("Selecciona un proveedor para proyectar:", df["proveedor"].unique())
-    pred = predecir_precio(df, prov_sel)
-    if pred:
-        st.metric(label=f"Precio estimado en {prov_sel}", value=f"${pred}")
-    else:
-        st.warning("Se necesitan al menos 3 registros históricos de este proveedor para predecir.")
+    # ==============================
+    # 🤖 PREDICCIÓN IA AVANZADA
+    # ==============================
+    st.divider()
+    st.subheader("🤖 Predicción de Precios con IA (Random Forest)")
+    st.markdown("Este modelo cruza tus datos históricos con tendencias simuladas del mercado externo.")
+
+    c_pred1, c_pred2 = st.columns(2)
+    
+    with c_pred1:
+        # Selectores para filtrar qué predecir
+        prod_lista = df["producto"].unique()
+        prod_sel = st.selectbox("Selecciona Producto para IA:", prod_lista)
+        
+        # Filtramos proveedores que vendan ese producto
+        prov_validos = df[df["producto"] == prod_sel]["proveedor"].unique()
+        prov_sel = st.selectbox("Selecciona Proveedor:", prov_validos)
+
+    with c_pred2:
+        if st.button("🧠 Ejecutar Modelo Predictivo"):
+            # 1. Obtenemos datos del mercado externo (Input para la IA)
+            df_mercado = obtener_tendencia_mercado(prod_sel)
+            
+            # 2. Ejecutamos la predicción avanzada
+            # Pasamos df filtrado por producto para que la IA se enfoque
+            df_producto_interno = df[df["producto"] == prod_sel]
+            
+            precio_est, mensaje = predecir_precio_ia(df_producto_interno, prov_sel, df_mercado)
+            
+            if precio_est:
+                st.metric(label=f"Precio Proyectado (7 días) - {prov_sel}", value=f"${precio_est}")
+                st.caption(f"ℹ {mensaje}")
+                
+                # Gráfico explicativo
+                # Unimos para graficar
+                df_hist = df_producto_interno[df_producto_interno["proveedor"] == prov_sel].sort_values("fecha")
+                fig_ia = px.line(df_hist, x="fecha", y="precio", title="Tu Histórico vs Predicción", markers=True)
+                # Agregamos el punto de predicción
+                fig_ia.add_scatter(
+                    x=[pd.to_datetime(date.today() + pd.Timedelta(days=7))], 
+                    y=[precio_est], 
+                    mode='markers+text', 
+                    name='Predicción IA',
+                    text=[f"${precio_est}"],
+                    marker=dict(size=15, color='red')
+                )
+                st.plotly_chart(fig_ia, use_container_width=True)
+                
+            else:
+                st.warning(mensaje)
 
 # ==============================
-# 🌐 COMPARATIVA WEB (SUPERMERCADOS Y MAYORISTAS)
+# 🌐 COMPARATIVA WEB
 # ==============================
 st.divider()
-st.subheader("🌐 Comparador de Supermercados Online")
-st.info("Busca precios en Jumbo, Lider, Tottus, Unimarc, Alvi y Casa García")
+st.subheader("🌐 Comparador de Mercado en Tiempo Real")
 
-producto_web = st.text_input("Ingresa producto para comparar online (ej: Aceite):")
+producto_web = st.text_input("Buscar producto en la web (ej: Aceite):", value="Aceite")
 
 if producto_web:
-    # Esta función ahora devuelve la lista extendida de supermercados
     df_web = obtener_precios_web(producto_web) 
     st.dataframe(df_web, use_container_width=True)
 
@@ -108,20 +151,6 @@ if producto_web:
         y="precio",
         color="proveedor",
         text_auto=True,
-        title=f"Precios de '{producto_web}' en la red"
+        title=f"Precios de '{producto_web}' hoy"
     )
     st.plotly_chart(fig_web, use_container_width=True)
-
-# ==============================
-# 💰 CALCULADORA DE VENTA
-# ==============================
-st.divider()
-st.subheader("💰 Calculadora de Margen para tu Pyme")
-c1, c2 = st.columns(2)
-with c1:
-    p_compra = st.number_input("Costo de compra ($)", min_value=0, value=1000)
-with c2:
-    p_margen = st.slider("Margen de ganancia %", 5, 100, 30)
-
-v_venta = p_compra * (1 + p_margen / 100)
-st.success(f"Sugerencia de venta: **${round(v_venta)}** | Ganancia: **${round(v_venta - p_compra)}** por unidad")
