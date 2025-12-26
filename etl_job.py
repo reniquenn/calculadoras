@@ -23,8 +23,7 @@ def extraer_precios_mercado():
     for prod in productos_monitor:
         fuentes = [
             {"prov": "Lider", "marca": "Lider", "precio_base": 950},
-            {"prov": "Lider", "marca": "Tucapel", "precio_base": 1350},
-            {"prov": "Jumbo", "marca": "Cuisine&Co", "precio_base": 1150},
+            {"prov": "Casa Gamovi", "marca": "Tucapel", "precio_base": 1490}, # Sucursal Codegua/San Francisco
             {"prov": "Mayorista 10", "marca": "Acuenta", "precio_base": 890},
             {"prov": "Alvi", "marca": "Genérica", "precio_base": 870}
         ]
@@ -37,7 +36,7 @@ def extraer_precios_mercado():
                 "proveedor": fuente["prov"],
                 "precio": precio_actual,
                 "fecha": datetime.now().isoformat(),
-                "ciudad": "Rancagua",
+                "ciudad": "San Francisco" if fuente["prov"] == "Casa Gamovi" else "Rancagua",
                 "origen": "ETL_AUTOMATICO"
             })
     return pd.DataFrame(datos_extraidos)

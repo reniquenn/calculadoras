@@ -8,6 +8,8 @@ def obtener_precios_web(producto):
     Obtiene precios referenciales actuales (Snapshot del día).
     """
     data = [
+        {"proveedor": "Casa Gamovi", "ciudad": "San Francisco (Codegua)", "producto": "Arroz 900gr", "marca": "Tucapel", "precio": 1490, "fuente": "casagamovi.cl"},
+        {"proveedor": "Casa Gamovi", "ciudad": "San Francisco (Codegua)", "producto": "Bebida 3Lt", "marca": "Coca Cola", "precio": 2390, "fuente": "casagamovi.cl"},
         {"proveedor": "Jumbo Online", "ciudad": "Rancagua", "producto": producto, "precio": 1190, "fuente": "jumbo.cl"},
         {"proveedor": "Santa Isabel", "ciudad": "Rancagua", "producto": producto, "precio": 1150, "fuente": "santaisabel.cl"},
         {"proveedor": "Lider", "ciudad": "Graneros", "producto": producto, "precio": 1050, "fuente": "lider.cl"},
